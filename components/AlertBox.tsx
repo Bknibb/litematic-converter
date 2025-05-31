@@ -2,12 +2,15 @@
 
 import { useEffect, useState } from 'react';
 
+type AlertMode = 'normal' | 'popup' | 'bottom';
+
 interface AlertBoxProps {
   message: string;
   type?: 'error' | 'warning' | 'success' | 'info';
   onClose?: () => void;
   duration?: number; // in ms
-  popup?: boolean;   // ⬅️ New
+  mode?: AlertMode;
+  className?: string;
 }
 
 const typeStyles = {
@@ -22,28 +25,30 @@ export default function AlertBox({
   type = 'info',
   onClose,
   duration = 4000,
-  popup = false
+  mode = 'normal',
+  className = '',
 }: AlertBoxProps) {
   const [visible, setVisible] = useState(true);
 
   useEffect(() => {
-    if (!popup) {
-      const timeout = setTimeout(() => {
-        setVisible(false);
-        onClose?.();
-      }, duration);
-      return () => clearTimeout(timeout);
-    }
-  }, [duration, onClose, popup]);
+    const timeout = setTimeout(() => {
+      setVisible(false);
+      onClose?.();
+    }, duration);
+    return () => clearTimeout(timeout);
+  }, [duration, onClose]);
 
   if (!visible) return null;
 
+  const baseClasses = `border-l-4 p-4 rounded-md shadow-md transition-all ${typeStyles[type]} ${className}`;
+
   const alertContent = (
     <div
-      className={`border-l-4 p-4 rounded-md shadow-md transition-all
-        ${typeStyles[type]}
-        ${popup ? 'max-w-md w-full text-center' : 'w-full max-w-xl mx-auto mt-4'}
-      `}
+      className={`${baseClasses} ${
+        mode === 'popup'
+          ? 'max-w-md w-full text-center'
+          : 'w-full max-w-xl mx-auto'
+      }`}
     >
       <div className="flex items-start justify-between">
         <p className="text-sm font-medium pr-4">{message}</p>
@@ -61,12 +66,23 @@ export default function AlertBox({
     </div>
   );
 
-  if (!popup) return alertContent;
+  // Render different modes
+  if (mode === 'popup') {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+        {alertContent}
+      </div>
+    );
+  }
 
-  // Wrap with modal overlay
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      {alertContent}
-    </div>
-  );
+  if (mode === 'bottom') {
+    return (
+      <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 z-50 w-full px-4">
+        {alertContent}
+      </div>
+    );
+  }
+
+  // Normal inline
+  return <div className="mt-4">{alertContent}</div>;
 }

@@ -30,7 +30,7 @@ export default function Home() {
   const [fileContent, setFileContent] = useState<ArrayBuffer>();
   const [fileName, setFileName] = useState('');
   const [output, setOutput] = useState('');
-  const [alert, setAlert] = useState<{ message: string; type?: 'error' | 'warning' | 'success'; popup: boolean } | null>(null);
+  const [alert, setAlert] = useState<{ message: string; type?: 'error' | 'warning' | 'success'; mode?: 'normal' | 'popup' | 'bottom' } | null>(null);
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     const file = acceptedFiles[0];
@@ -48,7 +48,7 @@ export default function Home() {
       setAlert({
         message: 'File must be a .litematic file',
         type: 'error',
-        popup: false,
+        mode: 'bottom',
       });
       return {
         code: 'file-invalid-type',
@@ -74,7 +74,7 @@ export default function Home() {
       setAlert({
         message: 'The name is too long, it will be trimmed to 30 characters.',
         type: 'warning',
-        popup: true,
+        mode: 'bottom',
       });
       console.warn("The name is too long, it will be trimmed");
       name = name.substring(0, 30);
@@ -105,7 +105,7 @@ export default function Home() {
       setAlert({
         message: 'The output sandmatic is too large, please try a smaller schematic.',
         type: 'error',
-        popup: true,
+        mode: 'popup',
       });
       console.error('The output sandmatic is too large, please try a smaller schematic');
       return;
@@ -119,7 +119,7 @@ export default function Home() {
       setAlert({
         message: 'The output sandmatic is too large, please try a smaller schematic.',
         type: 'error',
-        popup: true,
+        mode: 'popup',
       });
       console.error('The output sandmatic is too large, please try a smaller schematic');
       return;
@@ -132,7 +132,7 @@ export default function Home() {
     setAlert({
       message: 'Output copied to clipboard!',
       type: 'success',
-      popup: true,
+      mode: 'bottom',
     })
   };
 
@@ -196,7 +196,7 @@ export default function Home() {
           <AlertBox
             message={alert.message}
             type={alert.type}
-            popup={alert.popup}
+            mode={alert.mode}
             onClose={() => setAlert(null)}
           />
         )}
