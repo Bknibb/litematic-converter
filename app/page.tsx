@@ -121,11 +121,14 @@ export default function Home() {
       return;
     }
     setOutput(compressedB64);
-    //setOutput(result);
   };
 
   const handleCopy = () => {
     navigator.clipboard.writeText(output);
+    setAlert({
+      message: 'Output copied to clipboard!',
+      type: 'success',
+    })
   };
 
   return (
@@ -145,14 +148,20 @@ export default function Home() {
 
         <div
           {...getRootProps()}
-          className={`border-4 border-dashed rounded-xl p-10 text-center transition-colors duration-300 cursor-pointer ${
-            isDragActive ? 'border-blue-400 bg-gray-700' : 'border-gray-500 bg-gray-800'
-          }`}
+          className={`border-4 border-dashed rounded-xl p-10 text-center transition-colors duration-300 cursor-pointer
+            ${isDragActive
+              ? 'border-blue-500 bg-blue-500/20 text-blue-700'
+              : fileName
+              ? 'border-green-500 bg-green-500/20 text-green-700'
+              : 'border-gray-300 text-gray-500'}
+          `}
         >
           <input {...getInputProps()} accept=".litematic"/>
           <p className="text-lg">
             {isDragActive
               ? 'Drop the .litematic file here...'
+              : fileName
+              ? 'Selected file: ' + fileName
               : 'Drag and drop a .litematic file here, or click to select'}
           </p>
         </div>
