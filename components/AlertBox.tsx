@@ -7,6 +7,7 @@ interface AlertBoxProps {
   type?: 'error' | 'warning' | 'success' | 'info';
   onClose?: () => void;
   duration?: number; // in ms
+  popup?: boolean;   // ⬅️ New
 }
 
 const typeStyles = {
@@ -20,26 +21,31 @@ export default function AlertBox({
   message,
   type = 'info',
   onClose,
-  duration = 4000
+  duration = 4000,
+  popup = false
 }: AlertBoxProps) {
   const [visible, setVisible] = useState(true);
 
   useEffect(() => {
-    const timeout = setTimeout(() => {
-      setVisible(false);
-      onClose?.();
-    }, duration);
-
-    return () => clearTimeout(timeout);
-  }, [duration, onClose]);
+    if (!popup) {
+      const timeout = setTimeout(() => {
+        setVisible(false);
+        onClose?.();
+      }, duration);
+      return () => clearTimeout(timeout);
+    }
+  }, [duration, onClose, popup]);
 
   if (!visible) return null;
 
-  return (
+  const alertContent = (
     <div
-      className={`border-l-4 p-4 rounded-md shadow-md max-w-xl mx-auto mt-4 transition-all ${typeStyles[type]}`}
+      className={`border-l-4 p-4 rounded-md shadow-md transition-all
+        ${typeStyles[type]}
+        ${popup ? 'max-w-md w-full text-center' : 'w-full max-w-xl mx-auto mt-4'}
+      `}
     >
-      <div className="flex items-center justify-between">
+      <div className="flex items-start justify-between">
         <p className="text-sm font-medium pr-4">{message}</p>
         <button
           onClick={() => {
@@ -52,6 +58,15 @@ export default function AlertBox({
           &times;
         </button>
       </div>
+    </div>
+  );
+
+  if (!popup) return alertContent;
+
+  // Wrap with modal overlay
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+      {alertContent}
     </div>
   );
 }
