@@ -5,7 +5,7 @@ import { useDropzone } from 'react-dropzone';
 import { Litematic } from '@kleppe/litematic-reader'
 import AlertBox from '@/components/AlertBox';
 import { parseBlockState } from '@kleppe/litematic-reader/dist/lib/litematic';
-const pako = require('pako');
+import { deflate } from 'pako';
 
 type Vector3 = {
   X: number;
@@ -19,8 +19,8 @@ function getFileNameWithoutExtension(filename: string): string {
   parts.pop();
   return parts.join('.');
 }
-function convertBlock(bid: string, baxis: string, bpos: Vector3): Map<string, any> {
-  const blockDict = new Map<string, any>([["p", `${bpos.X},${bpos.Y},${bpos.Z}`],["b", bid]]);
+function convertBlock(bid: string, baxis: string, bpos: Vector3): Map<string, string> {
+  const blockDict = new Map<string, string>([["p", `${bpos.X},${bpos.Y},${bpos.Z}`],["b", bid]]);
   if (baxis == 'x') blockDict.set('r', 'f');
   else if (baxis == 'z') blockDict.set('r', 'l');
   return blockDict;
@@ -66,9 +66,9 @@ export default function Home() {
 
   const handleConvert = async () => {
     const litematic = new Litematic(fileContent as ArrayBuffer);
-    const outDict = new Map<string, any>();
+    const outDict = new Map<string, string | object>();
     await litematic.read();
-    var name = litematic.litematic?.name ? litematic.litematic?.name : getFileNameWithoutExtension(fileName);
+    let name = litematic.litematic?.name ? litematic.litematic?.name : getFileNameWithoutExtension(fileName);
     if (name.length > 30) {
       setAlert({
         message: 'The name is too long, it will be trimmed to 30 characters.',
@@ -107,7 +107,7 @@ export default function Home() {
       console.error('The output sandmatic is too large, please try a smaller schematic');
       return;
     }
-    const compressed = pako.deflate(output) as Uint8Array;
+    const compressed = deflate(output);
     const binaryString = Array.from(compressed)
       .map(byte => String.fromCharCode(byte))
       .join('');
