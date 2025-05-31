@@ -1,103 +1,191 @@
-import Image from "next/image";
+'use client';
+
+import { useState, useCallback } from 'react';
+import { useDropzone } from 'react-dropzone';
+import { Litematic } from '@kleppe/litematic-reader'
+import AlertBox from '@/components/AlertBox';
+import { parseBlockState } from '@kleppe/litematic-reader/dist/lib/litematic';
+const pako = require('pako');
+
+type Vector3 = {
+  X: number;
+  Y: number;
+  Z: number;
+};
+
+
+function getFileNameWithoutExtension(filename: string): string {
+  const parts = filename.split('.');
+  parts.pop();
+  return parts.join('.');
+}
+function convertBlock(bid: string, baxis: string, bpos: Vector3): Map<string, any> {
+  const blockDict = new Map<string, any>([["p", `${bpos.X},${bpos.Y},${bpos.Z}`],["b", bid]]);
+  if (baxis == 'x') blockDict.set('r', 'f');
+  else if (baxis == 'z') blockDict.set('r', 'l');
+  return blockDict;
+}
 
 export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm/6 text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-[family-name:var(--font-geist-mono)] font-semibold">
-              app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+  const [fileContent, setFileContent] = useState<ArrayBuffer>();
+  const [fileName, setFileName] = useState('');
+  const [output, setOutput] = useState('');
+  const [alert, setAlert] = useState<{ message: string; type?: 'error' | 'warning' | 'success' } | null>(null);
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+  const onDrop = useCallback((acceptedFiles: File[]) => {
+    const file = acceptedFiles[0];
+    if (file == undefined) return;
+    setFileName(file.name);
+    const reader = new FileReader();
+    reader.onload = () => {
+      setFileContent(reader.result as ArrayBuffer);
+    };
+    reader.readAsArrayBuffer(file);
+  }, []);
+
+  const validator = (file: File) => {
+    if (file.name != undefined && !file.name.endsWith('.litematic')) {
+      setAlert({
+        message: 'File must be a .litematic file',
+        type: 'error',
+      });
+      return {
+        code: 'file-invalid-type',
+        message: 'File must be a .litematic file',
+      };
+    }
+    return null;
+  }
+
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    onDrop,
+    accept: { 'application/octet-stream': ['.litematic'] },
+    validator: validator,
+    multiple: false
+  });
+
+  const handleConvert = async () => {
+    const litematic = new Litematic(fileContent as ArrayBuffer);
+    const outDict = new Map<string, any>();
+    await litematic.read();
+    var name = litematic.litematic?.name ? litematic.litematic?.name : getFileNameWithoutExtension(fileName);
+    if (name.length > 30) {
+      setAlert({
+        message: 'The name is too long, it will be trimmed to 30 characters.',
+        type: 'warning',
+      });
+      console.warn("The name is too long, it will be trimmed");
+      name = name.substring(0, 30);
+    }
+    outDict.set('Name', name);
+    const data = new Array<object>();
+    for (const block of await litematic.getAllBlocks()) {
+      const blockState = parseBlockState(block.block);
+      const bid = blockState.Name.startsWith('minecraft:') ? blockState.Name.substring(10) : "air";
+      if (bid == 'air') continue;
+      const btype = blockState.Properties["type"];
+      const baxis = blockState.Properties["axis"];
+      const bpos: Vector3 = { X: block.pos.x, Y: block.pos.y, Z: block.pos.z };
+      if (btype == "double") {
+        bpos.Y -= 0.25;
+        data.push(Object.fromEntries(convertBlock(bid, baxis, { X: bpos.X, Y: bpos.Y + 0.5, Z: bpos.Z })));
+      } else if (btype == "bottom") {
+        bpos.Y -= 0.25;
+      } else if (btype == "top") {
+        bpos.Y += 0.25;
+      }
+      data.push(Object.fromEntries(convertBlock(bid, baxis, bpos)));
+    }
+    outDict.set('Data', data);
+    const output = JSON.stringify(Object.fromEntries(outDict));
+    const maxSize = 200000;
+    if (output.length > maxSize) {
+      setAlert({
+        message: 'The output sandmatic is too large, please try a smaller schematic.',
+        type: 'error',
+      });
+      console.error('The output sandmatic is too large, please try a smaller schematic');
+      return;
+    }
+    const compressed = pako.deflate(output) as Uint8Array;
+    const binaryString = Array.from(compressed)
+      .map(byte => String.fromCharCode(byte))
+      .join('');
+    const compressedB64 = btoa(binaryString);
+    if (compressedB64.length > 50000) {
+      setAlert({
+        message: 'The output sandmatic is too large, please try a smaller schematic.',
+        type: 'error',
+      });
+      console.error('The output sandmatic is too large, please try a smaller schematic');
+      return;
+    }
+    setOutput(compressedB64);
+    //setOutput(result);
+  };
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(output);
+  };
+
+  return (
+    <main className="min-h-screen bg-gradient-to-b from-gray-900 via-gray-800 to-gray-900 text-white px-6 py-12">
+      <div className="max-w-2xl mx-auto space-y-8">
+        <h1 className="text-4xl font-bold text-center text-blue-400 drop-shadow-lg">
+          Litematic Converter
+        </h1>
+        
+        <p className="text-center text-gray-300">
+          A website to convert litematica schematics to sandmatic schematics for the roblox game Sandbox Madness.
+          <br/>
+          <a href="https://modrinth.com/mod/litematica" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">https://modrinth.com/mod/litematica</a>
+          <br/>
+          <a href="https://www.roblox.com/games/106482760794604/BETA-Sandbox-Madness" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">https://www.roblox.com/games/106482760794604/BETA-Sandbox-Madness</a>
+        </p>
+
+        <div
+          {...getRootProps()}
+          className={`border-4 border-dashed rounded-xl p-10 text-center transition-colors duration-300 cursor-pointer ${
+            isDragActive ? 'border-blue-400 bg-gray-700' : 'border-gray-500 bg-gray-800'
+          }`}
+        >
+          <input {...getInputProps()} accept=".litematic"/>
+          <p className="text-lg">
+            {isDragActive
+              ? 'Drop the .litematic file here...'
+              : 'Drag and drop a .litematic file here, or click to select'}
+          </p>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
+
+        <button
+          onClick={handleConvert}
+          className="w-full py-3 px-6 rounded-xl bg-blue-500 hover:bg-blue-600 transition font-semibold shadow-lg"
         >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
+          Convert
+        </button>
+
+        {output && (
+          <div className="bg-gray-800 p-6 rounded-xl shadow-md space-y-4">
+            <h2 className="text-xl font-semibold text-blue-300">Output Preview</h2>
+            <pre className="whitespace-pre-wrap text-sm bg-gray-900 p-4 rounded-md overflow-auto max-h-64">
+              {output}
+            </pre>
+            <button
+              onClick={handleCopy}
+              className="py-2 px-4 bg-green-500 hover:bg-green-600 rounded-lg text-white font-medium transition"
+            >
+              Copy to Clipboard
+            </button>
+          </div>
+        )}
+        {alert && (
+          <AlertBox
+            message={alert.message}
+            type={alert.type}
+            onClose={() => setAlert(null)}
           />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
+        )}
+      </div>
+    </main>
   );
 }
