@@ -13,6 +13,11 @@ type Vector3 = {
   Z: number;
 };
 
+const idMap: Map<string, string> = new Map([
+  ["grass", "air"],
+  ["grass_block", "grass"],
+]);
+
 
 function getFileNameWithoutExtension(filename: string): string {
   const parts = filename.split('.');
@@ -83,7 +88,10 @@ export default function Home() {
     const data = new Array<object>();
     for (const block of await litematic.getAllBlocks()) {
       const blockState = parseBlockState(block.block);
-      const bid = blockState.Name.startsWith('minecraft:') ? blockState.Name.substring(10) : "air";
+      let bid = blockState.Name.startsWith('minecraft:') ? blockState.Name.substring(10) : "air";
+      if (idMap.has(bid)) {
+        bid = idMap.get(bid) as string;
+      }
       if (bid == 'air') continue;
       const btype = blockState.Properties["type"];
       const baxis = blockState.Properties["axis"];
