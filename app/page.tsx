@@ -132,7 +132,6 @@ export default function Home() {
     }
     outDict.set('Data', data);
     outDict.set('Palette', palette);
-    console.log(outDict);
     const output = JSON.stringify(Object.fromEntries(outDict));
     const maxSize = 200000;
     if (output.length > maxSize) {
