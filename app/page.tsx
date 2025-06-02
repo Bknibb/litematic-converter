@@ -25,7 +25,7 @@ function getFileNameWithoutExtension(filename: string): string {
   return parts.join('.');
 }
 function convertBlock(paletteIndex: number, bpos: Vector3): Map<string, string | number> {
-  const blockDict = new Map<string, string | number>([["p", `${bpos.X},${bpos.Y},${bpos.Z}`], ["l", paletteIndex]]);
+  const blockDict = new Map<string, string | number>([["p", `${bpos.X},${bpos.Y},${bpos.Z}`], ["l", paletteIndex+1]]);
   return blockDict;
 }
 function convertPalette(bid: string, baxis: string): Map<string, string> {
