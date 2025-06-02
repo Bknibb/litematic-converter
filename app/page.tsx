@@ -24,11 +24,24 @@ function getFileNameWithoutExtension(filename: string): string {
   parts.pop();
   return parts.join('.');
 }
-function convertBlock(bid: string, baxis: string, bpos: Vector3): Map<string, string> {
-  const blockDict = new Map<string, string>([["p", `${bpos.X},${bpos.Y},${bpos.Z}`],["b", bid]]);
+function convertBlock(paletteIndex: number, bpos: Vector3): Map<string, string | number> {
+  const blockDict = new Map<string, string | number>([["p", `${bpos.X},${bpos.Y},${bpos.Z}`], ["l", paletteIndex]]);
+  return blockDict;
+}
+function convertPalette(bid: string, baxis: string): Map<string, string> {
+  const blockDict = new Map<string, string>([["b", bid]]);
   if (baxis == 'x') blockDict.set('r', 'f');
   else if (baxis == 'z') blockDict.set('r', 'l');
   return blockDict;
+}
+function findPalette(palette: Array<object>, bid: string, baxis: string): number {
+  for (let i = 0; i < palette.length; i++) {
+    const block = palette[i] as Record<string, string>;
+    if (block.b == bid && block.r == baxis) {
+      return i;
+    }
+  }
+  return -1;
 }
 
 export default function Home() {
@@ -86,6 +99,7 @@ export default function Home() {
     }
     outDict.set('Name', name);
     const data = new Array<object>();
+    const palette = new Array<object>();
     for (const block of await litematic.getAllBlocks()) {
       const blockState = parseBlockState(block.block);
       let bid = blockState.Name.startsWith('minecraft:') ? blockState.Name.substring(10) : "air";
@@ -98,15 +112,27 @@ export default function Home() {
       const bpos: Vector3 = { X: block.pos.x, Y: block.pos.y, Z: block.pos.z };
       if (btype == "double") {
         bpos.Y -= 0.25;
-        data.push(Object.fromEntries(convertBlock(bid, baxis, { X: bpos.X, Y: bpos.Y + 0.5, Z: bpos.Z })));
+        let paletteIndex = findPalette(palette, bid, baxis);
+        if (paletteIndex == -1) {
+          palette.push(Object.fromEntries(convertPalette(bid, baxis)));
+          paletteIndex = palette.length - 1;
+        }
+        data.push(Object.fromEntries(convertBlock(paletteIndex, { X: bpos.X, Y: bpos.Y + 0.5, Z: bpos.Z })));
       } else if (btype == "bottom") {
         bpos.Y -= 0.25;
       } else if (btype == "top") {
         bpos.Y += 0.25;
       }
-      data.push(Object.fromEntries(convertBlock(bid, baxis, bpos)));
+      let paletteIndex = findPalette(palette, bid, baxis);
+      if (paletteIndex == -1) {
+        palette.push(Object.fromEntries(convertPalette(bid, baxis)));
+        paletteIndex = palette.length - 1;
+      }
+      data.push(Object.fromEntries(convertBlock(paletteIndex, bpos)));
     }
     outDict.set('Data', data);
+    outDict.set('Palette', palette);
+    console.log(outDict);
     const output = JSON.stringify(Object.fromEntries(outDict));
     const maxSize = 200000;
     if (output.length > maxSize) {
