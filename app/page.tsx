@@ -18,6 +18,10 @@ const idMap: Map<string, string> = new Map([
   ["grass_block", "grass"],
 ]);
 
+const rotationMap: Map<(bid: string) => boolean, (brotation: number) => number> = new Map([
+  [(bid: string) => bid.endsWith('sign'), (brotation: number) => brotation > 0 ? 16 - brotation : 0]
+]);
+
 
 function getFileNameWithoutExtension(filename: string): string {
   const parts = filename.split('.');
@@ -28,7 +32,7 @@ function convertBlock(paletteIndex: number, bpos: Vector3): Map<string, string |
   const blockDict = new Map<string, string | number>([["p", `${bpos.X},${bpos.Y},${bpos.Z}`], ["l", paletteIndex+1]]);
   return blockDict;
 }
-function calculateRotation(baxis: string | undefined, bfacing: string | undefined, brotation: number | undefined): number | string | undefined {
+function calculateRotation(bid: string, baxis: string | undefined, bfacing: string | undefined, brotation: number | undefined): number | string | undefined {
   let rotation = 0;
   if (baxis == 'x') return 'f';
   if (baxis == 'z') return 'l';
@@ -36,17 +40,24 @@ function calculateRotation(baxis: string | undefined, bfacing: string | undefine
   if (bfacing == 'south') return 2;
   if (bfacing == 'east') return 1;
   if (bfacing == 'west') return 3;
-  if (brotation !== undefined) return brotation > 0 ? 16 - brotation : 0;
+  if (brotation !== undefined) {
+    for (const [condition, transform] of rotationMap) {
+      if (condition(bid)) {
+        return transform(brotation);
+      }
+    }
+    return brotation;
+  }
   return undefined;
 }
 function convertPalette(bid: string, baxis: string | undefined, bfacing: string | undefined, brotation: number | undefined): Map<string, string | number> {
   const blockDict = new Map<string, string | number>([["b", bid]]);
-  const rotation = calculateRotation(baxis, bfacing, brotation);
+  const rotation = calculateRotation(bid, baxis, bfacing, brotation);
   if (rotation !== undefined) blockDict.set('r', rotation);
   return blockDict;
 }
 function findPalette(palette: Array<object>, bid: string, baxis: string | undefined, bfacing: string | undefined, brotation: number | undefined): number {
-  const rotation = calculateRotation(baxis, bfacing, brotation);
+  const rotation = calculateRotation(bid, baxis, bfacing, brotation);
   for (let i = 0; i < palette.length; i++) {
     const block = palette[i] as Record<string, string | number | undefined>;
     if (block.b == bid && block.r == rotation) {
