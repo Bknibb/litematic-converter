@@ -28,16 +28,28 @@ function convertBlock(paletteIndex: number, bpos: Vector3): Map<string, string |
   const blockDict = new Map<string, string | number>([["p", `${bpos.X},${bpos.Y},${bpos.Z}`], ["l", paletteIndex+1]]);
   return blockDict;
 }
-function convertPalette(bid: string, baxis: string): Map<string, string> {
-  const blockDict = new Map<string, string>([["b", bid]]);
-  if (baxis == 'x') blockDict.set('r', 'f');
-  else if (baxis == 'z') blockDict.set('r', 'l');
+function calculateRotation(baxis: string | undefined, bfacing: string | undefined, brotation: number | undefined): number | string | undefined {
+  let rotation = 0;
+  if (baxis == 'x') return 'f';
+  if (baxis == 'z') return 'l';
+  if (bfacing == 'north') return 0;
+  if (bfacing == 'south') return 2;
+  if (bfacing == 'east') return 1;
+  if (bfacing == 'west') return 3;
+  if (brotation !== undefined) return brotation > 0 ? 16 - brotation : 0;
+  return undefined;
+}
+function convertPalette(bid: string, baxis: string | undefined, bfacing: string | undefined, brotation: number | undefined): Map<string, string | number> {
+  const blockDict = new Map<string, string | number>([["b", bid]]);
+  const rotation = calculateRotation(baxis, bfacing, brotation);
+  if (rotation !== undefined) blockDict.set('r', rotation);
   return blockDict;
 }
-function findPalette(palette: Array<object>, bid: string, baxis: string): number {
+function findPalette(palette: Array<object>, bid: string, baxis: string | undefined, bfacing: string | undefined, brotation: number | undefined): number {
+  const rotation = calculateRotation(baxis, bfacing, brotation);
   for (let i = 0; i < palette.length; i++) {
-    const block = palette[i] as Record<string, string>;
-    if (block.b == bid && block.r == baxis) {
+    const block = palette[i] as Record<string, string | number | undefined>;
+    if (block.b == bid && block.r == rotation) {
       return i;
     }
   }
@@ -107,14 +119,17 @@ export default function Home() {
         bid = idMap.get(bid) as string;
       }
       if (bid == 'air') continue;
-      const btype = blockState.Properties["type"];
-      const baxis = blockState.Properties["axis"];
+      const btype = blockState.Properties["type"] as string | undefined;
+      const baxis = blockState.Properties["axis"] as string | undefined;
+      const bfacing = blockState.Properties["facing"] as string | undefined;
+      const brotationStr = blockState.Properties["rotation"] as string | undefined;
+      const brotation = brotationStr ? Number.parseInt(brotationStr) : undefined;
       const bpos: Vector3 = { X: block.pos.x, Y: block.pos.y, Z: block.pos.z };
       if (btype == "double") {
         bpos.Y -= 0.25;
-        let paletteIndex = findPalette(palette, bid, baxis);
+        let paletteIndex = findPalette(palette, bid, baxis, bfacing, brotation);
         if (paletteIndex == -1) {
-          palette.push(Object.fromEntries(convertPalette(bid, baxis)));
+          palette.push(Object.fromEntries(convertPalette(bid, baxis, bfacing, brotation)));
           paletteIndex = palette.length - 1;
         }
         data.push(Object.fromEntries(convertBlock(paletteIndex, { X: bpos.X, Y: bpos.Y + 0.5, Z: bpos.Z })));
@@ -123,9 +138,9 @@ export default function Home() {
       } else if (btype == "top") {
         bpos.Y += 0.25;
       }
-      let paletteIndex = findPalette(palette, bid, baxis);
+      let paletteIndex = findPalette(palette, bid, baxis, bfacing, brotation);
       if (paletteIndex == -1) {
-        palette.push(Object.fromEntries(convertPalette(bid, baxis)));
+        palette.push(Object.fromEntries(convertPalette(bid, baxis, bfacing, brotation)));
         paletteIndex = palette.length - 1;
       }
       data.push(Object.fromEntries(convertBlock(paletteIndex, bpos)));
