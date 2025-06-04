@@ -4,8 +4,9 @@ import { useState, useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { Litematic } from '@kleppe/litematic-reader'
 import AlertBox from '@/components/AlertBox';
-import { parseBlockState } from '@kleppe/litematic-reader/dist/lib/litematic';
+import { parseBlockState, SchematicReader } from '@kleppe/litematic-reader/dist/lib/litematic';
 import { deflate } from 'pako';
+import { TileEntityData } from './TileEntityData';
 
 type Vector3 = {
   X: number;
@@ -28,8 +29,11 @@ function getFileNameWithoutExtension(filename: string): string {
   parts.pop();
   return parts.join('.');
 }
-function convertBlock(paletteIndex: number, bpos: Vector3): Map<string, string | number> {
+function convertBlock(paletteIndex: number, bpos: Vector3, extraData: Map<string, string | number>): Map<string, string | number> {
   const blockDict = new Map<string, string | number>([["p", `${bpos.X},${bpos.Y},${bpos.Z}`], ["l", paletteIndex+1]]);
+  for (const [key, value] of extraData.entries()) {
+    blockDict.set(key, value);
+  }
   return blockDict;
 }
 function calculateRotation(bid: string, baxis: string | undefined, bfacing: string | undefined, brotation: number | undefined): number | string | undefined {
@@ -120,6 +124,7 @@ export default function Home() {
       name = name.substring(0, 30);
     }
     outDict.set('Name', name);
+    const tileEntityData = new TileEntityData(litematic.litematic as SchematicReader);
     const data = new Array<object>();
     const palette = new Array<object>();
     for (const block of await litematic.getAllBlocks()) {
@@ -135,6 +140,23 @@ export default function Home() {
       const brotationStr = blockState.Properties["rotation"] as string | undefined;
       const brotation = brotationStr ? Number.parseInt(brotationStr) : undefined;
       const bpos: Vector3 = { X: block.pos.x, Y: block.pos.y, Z: block.pos.z };
+      const extraData = new Map<string, string | number>();
+      if (bid.endsWith('sign')) {
+        const tileEntity = tileEntityData.getTileEntityByPosition(bpos.X, bpos.Y, bpos.Z);
+        if (tileEntity !== undefined) {
+          const tileEntityId = tileEntity.id;
+          if (tileEntityId == "minecraft:sign") {
+            const frontText = tileEntity.tileEntityData['front_text'] as {[key: string]: unknown} | undefined;
+            if (frontText !== undefined) {
+              const messages = frontText['messages'] as Array<string> | undefined;
+              if (messages !== undefined && messages.length > 0) {
+                const text = messages.map(msg => msg.substring(1, msg.length - 1)).filter(msg => msg.length > 0).join('\n');
+                extraData.set('S', text);
+              }
+            }
+          }
+        }
+      }
       if (btype == "double") {
         bpos.Y -= 0.25;
         let paletteIndex = findPalette(palette, bid, baxis, bfacing, brotation);
@@ -142,7 +164,7 @@ export default function Home() {
           palette.push(Object.fromEntries(convertPalette(bid, baxis, bfacing, brotation)));
           paletteIndex = palette.length - 1;
         }
-        data.push(Object.fromEntries(convertBlock(paletteIndex, { X: bpos.X, Y: bpos.Y + 0.5, Z: bpos.Z })));
+        data.push(Object.fromEntries(convertBlock(paletteIndex, { X: bpos.X, Y: bpos.Y + 0.5, Z: bpos.Z }, extraData)));
       } else if (btype == "bottom") {
         bpos.Y -= 0.25;
       } else if (btype == "top") {
@@ -153,7 +175,7 @@ export default function Home() {
         palette.push(Object.fromEntries(convertPalette(bid, baxis, bfacing, brotation)));
         paletteIndex = palette.length - 1;
       }
-      data.push(Object.fromEntries(convertBlock(paletteIndex, bpos)));
+      data.push(Object.fromEntries(convertBlock(paletteIndex, bpos, extraData)));
     }
     outDict.set('Data', data);
     outDict.set('Palette', palette);
