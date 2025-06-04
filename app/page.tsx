@@ -33,7 +33,6 @@ function convertBlock(paletteIndex: number, bpos: Vector3): Map<string, string |
   return blockDict;
 }
 function calculateRotation(bid: string, baxis: string | undefined, bfacing: string | undefined, brotation: number | undefined): number | string | undefined {
-  let rotation = 0;
   if (baxis == 'x') return 'f';
   if (baxis == 'z') return 'l';
   if (bfacing == 'north') return 0;
